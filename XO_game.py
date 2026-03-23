@@ -125,32 +125,66 @@ def add_loop_cut(obj, edge_indices, cuts=1, offset=0.0):
     bmesh.update_edit_mesh(obj.data)
     bpy.ops.object.mode_set(mode='OBJECT')
 
-
-def bevel_vertices_ops(obj, vertex_indices, offset=0.5, segments=10):
-    # Make sure it is OBJECT mode
+def extrude(obj, mode, index, direction, distance):
+    # Ensure we are in OBJECT mode
     bpy.ops.object.mode_set(mode='OBJECT')
     
-    # Clear All Selection
+    # Clear all selections
     clear_selection(obj)
     
-    # Select all assigned edges
-    for idx in vertex_indices:
-        obj.data.vertices[idx].select = True
-        
-    # Change to EDIT Mode
+    # Selection mode
+    if mode == 'VERT':
+        obj.data.vertices[index].select = True
+    elif mode == 'EDGE':
+        obj.data.edges[index].select = True
+    elif mode == 'FACE':
+        obj.data.polygons[index].select = True
+    else:
+        print("Invalid mode. Use 'VERT', 'EDGE', or 'FACE'.")
+        return
+    
+    # Switch to EDIT mode
     bpy.ops.object.mode_set(mode='EDIT')
     
-    # Ensure Blender is in Vertex Selection Mode
-    bpy.ops.mesh.select_mode(type='VERT')
+    # Set the pivot point to individual origins
+    bpy.context.scene.tool_settings.transform_pivot_point = 'INDIVIDUAL_ORIGINS'
     
-    # Bevel Edge
+    # Extrude the selection
+    bpy.ops.mesh.extrude_context()
+    
+    # Move in the specified direction
+    if direction == 'UP':
+        bpy.ops.transform.translate(value=(0, 0, distance))
+    elif direction == 'DOWN':
+        bpy.ops.transform.translate(value=(0, 0, -distance))
+    elif direction == 'LEFT':
+        bpy.ops.transform.translate(value=(-distance, 0, 0))
+    elif direction == 'RIGHT':
+        bpy.ops.transform.translate(value=(distance, 0, 0))
+    elif direction == 'FORWARD':
+        bpy.ops.transform.translate(value=(0, distance, 0))
+    elif direction == 'BACKWARD':
+        bpy.ops.transform.translate(value=(0, -distance, 0))
+    
+    # Switch back to OBJECT mode
+    bpy.ops.object.mode_set(mode='OBJECT')
+
+def bevel_edges(obj, offset=0.1, segments=1):
+    if not obj or obj.type != 'MESH':
+        return
+
+    # Switch to EDIT mode and select all edges
+    bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.mesh.select_all(action='SELECT')
+    bpy.ops.mesh.select_mode(type='EDGE')
+
+    # Bevel
     bpy.ops.mesh.bevel(
-        offset=offset, 
-        segments=segments, 
+        offset=offset,
+        segments=segments,
         affect='EDGES'
     )
-    
-    # Switch back to OBJECT Mode
+
     bpy.ops.object.mode_set(mode='OBJECT')
 
 # Add camera at 0, 0, 40 pointing down
@@ -181,3 +215,14 @@ ApplyAll()
 add_loop_cut(main_arena, edge_indices=[0, 2, 4, 6], cuts=2, offset=0.0)
 add_loop_cut(main_arena, edge_indices=[1, 24, 25, 3, 5, 23, 22, 7], cuts=2, offset=0.0)
 index_overlay(True)
+bevel_edges(main_arena, offset=0.03, segments=3)
+
+extrude(main_arena, mode='FACE', index=452, direction='DOWN', distance=0.14)
+extrude(main_arena, mode='FACE', index=473, direction='DOWN', distance=0.14)
+extrude(main_arena, mode='FACE', index=458, direction='DOWN', distance=0.14)
+extrude(main_arena, mode='FACE', index=476, direction='DOWN', distance=0.14)
+extrude(main_arena, mode='FACE', index=474, direction='DOWN', distance=0.14)
+extrude(main_arena, mode='FACE', index=475, direction='DOWN', distance=0.14)
+extrude(main_arena, mode='FACE', index=457, direction='DOWN', distance=0.14)
+extrude(main_arena, mode='FACE', index=469, direction='DOWN', distance=0.14)
+extrude(main_arena, mode='FACE', index=461, direction='DOWN', distance=0.14)
