@@ -78,6 +78,17 @@ def shade_smooth(obj):
 def ApplyAll():
     bpy.ops.object.convert(target='MESH')
 
+def transform(obj, location=None, rotation=None, scale=None):
+    if location:
+        obj.location = location
+    if rotation:
+        obj.rotation_euler[0] = radians(rotation[0])
+        obj.rotation_euler[1] = radians(rotation[1])
+        obj.rotation_euler[2] = radians(rotation[2])
+    if scale:
+        obj.scale = scale
+    return obj
+
 def add_loop_cut(obj, edge_indices, cuts=1, offset=0.0):
     bpy.ops.object.mode_set(mode='EDIT')
     
@@ -222,7 +233,7 @@ camera = bpy.context.object
 camera.name = "Camera"
 
 # Rotate camera to point down (90 degrees rotation on X-axis)
-camera.rotation_euler = (0, 0, radians(90))
+camera.rotation_euler = (0, 0, radians(360))
 
 # Set as active camera
 bpy.context.scene.camera = camera
@@ -260,3 +271,15 @@ apply_color(board, mat_name="BoardMat", color=(0.1, 0.3, 0.8, 1.0), metallic=0.0
 
 color_plane = create_plane("ColorPlane", location=(0, 0, 1 - 0.12), scale=(4.9, 4.9))
 apply_color(color_plane, mat_name="ColorPlaneMat", color=(0.05, 0.15, 0.5, 1.0), metallic=0.0, roughness=0.5, emit_strength=0)
+
+# Monkeys
+for o in range(4):
+    monkey = create_monkey(f"Monkey{o}", location=(8, 5 - (o * 3), 4), scale=(1, 1, 1))
+    transform(monkey, rotation=(-90, 0, 0))
+    apply_color(monkey, mat_name=f"MonkeyMat{o}", color=(1.0, 0.5, 0.0, 1.0), metallic=0.5, roughness=0.3, emit_strength=0)
+
+# Circles
+for c in range(4):
+    torus = create_torus(f"Torus{c}", location=(-8, 5 - (c * 3), 4), scale=(1, 1, 1))
+    transform(torus, rotation=(0, 0, 0))
+    apply_color(torus, mat_name=f"TorusMat{c}", color=(0.0, 1.0, 0.5, 1.0), metallic=0.5, roughness=0.3, emit_strength=0)
