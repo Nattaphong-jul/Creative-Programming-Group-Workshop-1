@@ -26,9 +26,13 @@ def create_plane(name, location, scale):
     
     return plane
 
-def create_torus(name, location, scale):
+def create_torus(name, location, scale, major_segments=48, minor_segments=12):
     # Add Torus
-    bpy.ops.mesh.primitive_torus_add(location=location)
+    bpy.ops.mesh.primitive_torus_add(
+        location=location,
+        major_segments=major_segments,
+        minor_segments=minor_segments
+    )
     
     torus = bpy.context.object
     torus.name = name
@@ -272,14 +276,16 @@ apply_color(board, mat_name="BoardMat", color=(0.1, 0.3, 0.8, 1.0), metallic=0.0
 color_plane = create_plane("ColorPlane", location=(0, 0, 1 - 0.12), scale=(4.9, 4.9))
 apply_color(color_plane, mat_name="ColorPlaneMat", color=(0.05, 0.15, 0.5, 1.0), metallic=0.0, roughness=0.5, emit_strength=0)
 
-# Monkeys
-for o in range(4):
-    monkey = create_monkey(f"Monkey{o}", location=(8, 5 - (o * 3), 4), scale=(1, 1, 1))
-    transform(monkey, rotation=(-90, 0, 0))
-    apply_color(monkey, mat_name=f"MonkeyMat{o}", color=(1.0, 0.5, 0.0, 1.0), metallic=0.5, roughness=0.3, emit_strength=0)
+# Lock the board so it cannot be selected unless manually unlocked
+board.hide_select = True
+color_plane.hide_select = True
 
-# Circles
-for c in range(4):
-    torus = create_torus(f"Torus{c}", location=(-8, 5 - (c * 3), 4), scale=(1, 1, 1))
+# Monkeys and Circles
+for i in range(4):
+    monkey = create_monkey(f"Monkey{i}", location=(8, 5 - (i * 3), 2), scale=(1, 1, 1))
+    transform(monkey, rotation=(-90, 0, 0))
+    apply_color(monkey, mat_name=f"MonkeyMat{i}", color=(1.0, 0.5, 0.0, 1.0), metallic=0.5, roughness=0.3, emit_strength=0)
+
+    torus = create_torus(f"Torus{i}", location=(-8, 5 - (i * 3), 2), scale=(1, 1, 1), major_segments=100, minor_segments=100)
     transform(torus, rotation=(0, 0, 0))
-    apply_color(torus, mat_name=f"TorusMat{c}", color=(0.0, 1.0, 0.5, 1.0), metallic=0.5, roughness=0.3, emit_strength=0)
+    apply_color(torus, mat_name=f"TorusMat{i}", color=(0.9, 0.2, 0.2, 1.0), metallic=0.5, roughness=0.3, emit_strength=0)
