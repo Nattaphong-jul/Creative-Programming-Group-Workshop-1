@@ -6,9 +6,13 @@ import bmesh
 if bpy.ops.object.mode_set.poll():
     bpy.ops.object.mode_set(mode='OBJECT')
 
-# Delete all objects
-bpy.ops.object.select_all(action='SELECT')
-bpy.ops.object.delete(use_global=False)
+# Delete all objects and orphaned data safely (works even inside a modal operator)
+for obj in list(bpy.data.objects):
+    bpy.data.objects.remove(obj, do_unlink=True)
+for mesh in list(bpy.data.meshes):
+    bpy.data.meshes.remove(mesh)
+for mat in list(bpy.data.materials):
+    bpy.data.materials.remove(mat)
 
 def clear_selection(obj): # Clear all selections in the mesh
     for v in obj.data.vertices: v.select = False
@@ -258,7 +262,7 @@ add_solidify(board, thickness=0.5)
 ApplyAll()
 add_loop_cut(board, edge_indices=[0, 2, 4, 6], cuts=2, offset=0.0)
 add_loop_cut(board, edge_indices=[1, 24, 25, 3, 5, 23, 22, 7], cuts=2, offset=0.0)
-index_overlay(True)
+index_overlay(False)
 bevel_edges(board, offset=0.03, segments=3)
 
 extrude(board, mode='FACE', index=452, direction='DOWN', distance=0.14)

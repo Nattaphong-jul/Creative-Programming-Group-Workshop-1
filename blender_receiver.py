@@ -9,6 +9,7 @@ Gesture → Blender action map
   👍  thumb_up      →  Snap to Camera View  (Numpad 0)
   ☝️  one_finger    →  Switch to Object Mode
   👌  ok  (4s hold) →  Unlock grab; then move object freely
+  🖐  open_hand (5s) →  Restart the game
   👉  point_right   →  Select next mesh object
   👈  point_left    →  Select previous mesh object
 
@@ -24,7 +25,8 @@ import json
 
 # ── Config ────────────────────────────────────────────────────────────────────
 UDP_PORT   = 5005
-GRAB_SCALE = 10.0   # how strongly hand XY delta maps to world units
+GRAB_SCALE    = 10.0   # how strongly hand XY delta maps to world units
+XO_GAME_PATH  = "//XO_game.py"  # path to setup script (// = relative to .blend file)
 
 
 # ── Blender operation helpers ─────────────────────────────────────────────────
@@ -38,10 +40,10 @@ def get_view3d_area():
 
 
 def mesh_objects_in_scene():
-    """Return all visible mesh objects, excluding internal helpers."""
+    """Return all selectable mesh objects, respecting hide_select lock."""
     return [
         o for o in bpy.context.scene.objects
-        if o.type == "MESH"
+        if o.type == "MESH" and not o.hide_select
     ]
 
 
@@ -68,6 +70,41 @@ def snap_to_camera_view():
         print("[blender_receiver] Snapped to camera view")
     except Exception as e:
         print(f"[blender_receiver] Camera view error: {e}")
+
+
+
+def restart_game():
+    """Re-run XO_game.py to fully reset the scene."""
+    import os
+
+    # Force-delete ALL objects first to prevent .001 duplicates.
+    # bpy.ops.object.delete() can fail when the modal operator holds context,
+    # so we use bpy.data directly — this always works regardless of context.
+    for obj in list(bpy.data.objects):
+        bpy.data.objects.remove(obj, do_unlink=True)
+
+    # Purge any orphaned mesh/material data left behind
+    for mesh in list(bpy.data.meshes):
+        bpy.data.meshes.remove(mesh)
+    for mat in list(bpy.data.materials):
+        bpy.data.materials.remove(mat)
+
+    # Resolve // (blend-relative) path to absolute
+    blend_dir = os.path.dirname(bpy.data.filepath)
+    path = XO_GAME_PATH.lstrip("/")  # strip leading //
+    abs_path = os.path.join(blend_dir, path) if blend_dir else path
+
+    if not os.path.exists(abs_path):
+        print(f"[blender_receiver] Restart: file not found → {abs_path}")
+        print("[blender_receiver] Update XO_GAME_PATH at the top of this script.")
+        return
+
+    try:
+        bpy.ops.script.python_file_run(filepath=abs_path)
+        print(f"[blender_receiver] Game restarted from {abs_path}")
+        snap_to_camera_view()
+    except Exception as e:
+        print(f"[blender_receiver] Restart error: {e}")
 
 
 def apply_bevel():
@@ -196,6 +233,9 @@ class MEDIAPIPE_OT_controller(bpy.types.Operator):
         elif gesture == "point_left" and confirmed:
             cycle_selected_object(-1)
 
+        elif gesture == "open_hand" and confirmed:
+            restart_game()
+
         # ── Grab — unlocked after 4-sec OK hold, movement is immediate ───
         elif gesture == "ok" and grab_active:
             self._handle_grab(nx, ny, confirmed)
@@ -245,6 +285,8 @@ class MEDIAPIPE_OT_controller(bpy.types.Operator):
         self._timer = wm.event_timer_add(0.033, window=context.window)
         wm.modal_handler_add(self)
 
+        snap_to_camera_view()
+
         print("[blender_receiver] Started — press ESC in viewport to stop")
         print("  two_fingers  → Edit Mode")
         print("  one_finger   → Object Mode")
@@ -253,6 +295,7 @@ class MEDIAPIPE_OT_controller(bpy.types.Operator):
         print("  ok  (held)   → Grab & move active object")
         print("  point_right  → Select next mesh object")
         print("  point_left   → Select previous mesh object")
+        print("  open_hand    → Hold 5s to restart the game")
         return {"RUNNING_MODAL"}
 
     def cancel(self, context):

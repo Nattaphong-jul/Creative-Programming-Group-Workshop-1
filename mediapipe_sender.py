@@ -39,7 +39,8 @@ PINCH_THRESHOLD = 0.06
 # flooding Blender's main thread. Raise to 0.15 if it still stutters.
 SEND_INTERVAL   = 0.033  # ~30 packets/sec, matches webcam framerate
 MOVE_THRESHOLD  = 0.005  # lower threshold for more responsive grab movement
-CONFIRM_SECONDS = 2.0    # seconds to hold a gesture before it confirms
+CONFIRM_SECONDS  = 2.0    # seconds to hold a gesture before it confirms
+RESTART_SECONDS  = 5.0    # seconds to hold open hand before game restarts
 MODEL_PATH      = "hand_landmarker.task"
 MODEL_URL       = (
     "https://storage.googleapis.com/mediapipe-models/"
@@ -48,9 +49,9 @@ MODEL_URL       = (
 
 # ── Download model if needed ──────────────────────────────────────────────────
 if not os.path.exists(MODEL_PATH):
-    print("[sender] Downloading hand landmarker model (~25 MB)…")
+    print("Downloading hand landmarker model")
     urllib.request.urlretrieve(MODEL_URL, MODEL_PATH)
-    print("[sender] Model downloaded!")
+    print("Model downloaded")
 
 # ── UDP socket ────────────────────────────────────────────────────────────────
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -65,9 +66,6 @@ sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 #  Pinky  : MCP=17 PIP=18 DIP=19 TIP=20
 
 WRIST = 0
-
-
-# ── Geometry helpers ──────────────────────────────────────────────────────────
 
 def dist2d(a, b) -> float:
     return math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2)
@@ -163,6 +161,10 @@ def classify_gesture(lm) -> str:
             return "point_left"
         return "one_finger"
 
+    # 8 — Open hand (all four fingers extended, no specific gesture)
+    if not idx_curled and not mid_curled and not rng_curled and not pky_curled:
+        return "open_hand"
+
     return "none"
 
 
@@ -175,7 +177,8 @@ GESTURE_UI = {
     "point_right": ((80,  230, 200), "POINT RIGHT - Next Object"),
     "point_left" : ((80,  230, 200), "POINT LEFT  - Prev Object"),
     "one_finger" : ((180, 180, 255), "ONE FINGER  - Object Mode"),
-    "none"       : ((0,   180, 255), "Open hand"),
+    "open_hand"  : ((0,   255, 180), "OPEN HAND   - Hold 5s to Restart"),
+    "none"       : ((0,   180, 255), "No gesture"),
 }
 
 
@@ -220,6 +223,8 @@ last_gesture       = "none"
 gesture_hold_start = 0.0    # when the current gesture first appeared
 already_confirmed  = False  # prevents re-firing while the gesture is held
 grab_active        = False  # True once OK has been held for 4 s
+open_hand_start    = 0.0    # tracks open_hand hold start independently
+restart_confirmed  = False  # prevents re-firing open_hand restart
 
 # ── Throttle state ────────────────────────────────────────────────────────────
 last_send_time = 0.0
@@ -292,16 +297,31 @@ while cap.isOpened():
             grab_active = False
     last_gesture = gesture
 
-    hold_duration = now - gesture_hold_start if gesture != "none" else 0.0
+    hold_duration = now - gesture_hold_start if gesture not in ("none", "open_hand") else 0.0
     progress      = min(hold_duration / CONFIRM_SECONDS, 1.0)
+
+    # Track open_hand hold separately with RESTART_SECONDS threshold
+    if gesture == "open_hand":
+        if open_hand_start == 0.0:
+            open_hand_start = now
+        open_hand_progress = min((now - open_hand_start) / RESTART_SECONDS, 1.0)
+    else:
+        open_hand_start   = 0.0
+        open_hand_progress = 0.0
+        restart_confirmed  = False
 
     # OK activates grab instantly — no hold required
     if gesture == "ok":
         grab_active = True
 
-    # All other gestures fire once at the 4-second mark
+    # open_hand fires once at 5-second mark
     gesture_confirmed = False
-    if gesture != "none" and gesture != "ok" and progress >= 1.0 and not already_confirmed:
+    if gesture == "open_hand" and open_hand_progress >= 1.0 and not restart_confirmed:
+        gesture_confirmed = True
+        restart_confirmed = True
+
+    # All other gestures fire once at the confirm mark
+    elif gesture not in ("none", "ok", "open_hand") and progress >= 1.0 and not already_confirmed:
         gesture_confirmed = True
         already_confirmed = True
 
@@ -318,11 +338,15 @@ while cap.isOpened():
     h_px, w_px = frame.shape[:2]
     cv2.circle(frame, (int(x * w_px), int(y * h_px)), 8, colour, -1)
 
-    # Draw progress bar for gestures that need the 4-sec hold (not OK/grab)
-    if gesture != "none" and gesture != "ok" and (not already_confirmed or not grab_active):
+    # Draw progress bar — open_hand uses its own 5s progress
+    if gesture == "open_hand":
+        if not restart_confirmed:
+            draw_progress_bar(frame, open_hand_progress, colour)
+        else:
+            draw_progress_bar(frame, 1.0, (0, 255, 120))
+    elif gesture != "none" and gesture != "ok" and (not already_confirmed or not grab_active):
         draw_progress_bar(frame, progress, colour)
     elif gesture != "none" and already_confirmed:
-        # Show a brief "CONFIRMED" flash by drawing a full bar
         draw_progress_bar(frame, 1.0, (0, 255, 120))
 
     # ── Build payload ─────────────────────────────────────────────────────
