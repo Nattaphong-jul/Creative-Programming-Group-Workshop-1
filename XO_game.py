@@ -125,6 +125,35 @@ def add_loop_cut(obj, edge_indices, cuts=1, offset=0.0):
     bmesh.update_edit_mesh(obj.data)
     bpy.ops.object.mode_set(mode='OBJECT')
 
+def apply_color(target_obj, mat_name="Color", color=(1.0, 1.0, 1.0, 1.0), metallic=0.0, roughness=0.5, emit_strength=0.0):
+    
+    # Create New Material
+    myMat = bpy.data.materials.new(name=mat_name)
+    myMat.use_nodes = True
+    
+    # Get Principled BSDF node
+    bsdf = myMat.node_tree.nodes.get("Principled BSDF")
+    
+    # Set the values directly
+    if bsdf:
+        bsdf.inputs['Base Color'].default_value = color
+        bsdf.inputs['Metallic'].default_value = metallic
+        bsdf.inputs['Roughness'].default_value = roughness
+        
+        # Emission
+        emit_socket = 'Emission Color' if 'Emission Color' in bsdf.inputs else 'Emission'
+        bsdf.inputs[emit_socket].default_value = color 
+        
+        # Emission Strength
+        if 'Emission Strength' in bsdf.inputs:
+            bsdf.inputs['Emission Strength'].default_value = emit_strength
+
+    # Clear existing materials and assign the new one
+    target_obj.data.materials.clear()
+    target_obj.data.materials.append(myMat)
+    
+    return myMat
+
 def extrude(obj, mode, index, direction, distance):
     # Ensure we are in OBJECT mode
     bpy.ops.object.mode_set(mode='OBJECT')
@@ -209,20 +238,25 @@ def index_overlay(b: bool = True):
                     space.overlay.show_extra_indices = b
     return b
 
-main_arena = create_plane("MainArena", location=(0, 0, 0), scale=(5, 5))
-add_solidify(main_arena, thickness=0.5)
+board = create_plane("Board", location=(0, 0, 1), scale=(5, 5))
+add_solidify(board, thickness=0.5)
 ApplyAll()
-add_loop_cut(main_arena, edge_indices=[0, 2, 4, 6], cuts=2, offset=0.0)
-add_loop_cut(main_arena, edge_indices=[1, 24, 25, 3, 5, 23, 22, 7], cuts=2, offset=0.0)
+add_loop_cut(board, edge_indices=[0, 2, 4, 6], cuts=2, offset=0.0)
+add_loop_cut(board, edge_indices=[1, 24, 25, 3, 5, 23, 22, 7], cuts=2, offset=0.0)
 index_overlay(True)
-bevel_edges(main_arena, offset=0.03, segments=3)
+bevel_edges(board, offset=0.03, segments=3)
 
-extrude(main_arena, mode='FACE', index=452, direction='DOWN', distance=0.14)
-extrude(main_arena, mode='FACE', index=473, direction='DOWN', distance=0.14)
-extrude(main_arena, mode='FACE', index=458, direction='DOWN', distance=0.14)
-extrude(main_arena, mode='FACE', index=476, direction='DOWN', distance=0.14)
-extrude(main_arena, mode='FACE', index=474, direction='DOWN', distance=0.14)
-extrude(main_arena, mode='FACE', index=475, direction='DOWN', distance=0.14)
-extrude(main_arena, mode='FACE', index=457, direction='DOWN', distance=0.14)
-extrude(main_arena, mode='FACE', index=469, direction='DOWN', distance=0.14)
-extrude(main_arena, mode='FACE', index=461, direction='DOWN', distance=0.14)
+extrude(board, mode='FACE', index=452, direction='DOWN', distance=0.14)
+extrude(board, mode='FACE', index=473, direction='DOWN', distance=0.14)
+extrude(board, mode='FACE', index=458, direction='DOWN', distance=0.14)
+extrude(board, mode='FACE', index=476, direction='DOWN', distance=0.14)
+extrude(board, mode='FACE', index=474, direction='DOWN', distance=0.14)
+extrude(board, mode='FACE', index=475, direction='DOWN', distance=0.14)
+extrude(board, mode='FACE', index=457, direction='DOWN', distance=0.14)
+extrude(board, mode='FACE', index=469, direction='DOWN', distance=0.14)
+extrude(board, mode='FACE', index=461, direction='DOWN', distance=0.14)
+
+apply_color(board, mat_name="BoardMat", color=(0.1, 0.3, 0.8, 1.0), metallic=0.0, roughness=0.5, emit_strength=0)
+
+color_plane = create_plane("ColorPlane", location=(0, 0, 1 - 0.12), scale=(4.9, 4.9))
+apply_color(color_plane, mat_name="ColorPlaneMat", color=(0.05, 0.15, 0.5, 1.0), metallic=0.0, roughness=0.5, emit_strength=0)
